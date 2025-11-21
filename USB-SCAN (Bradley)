@@ -1,0 +1,166 @@
+# Importer les outils nécessaires
+import platform      # Pour avoir les infos du PC
+import psutil        # Pour avoir RAM, disque, etc.
+import socket        # Pour avoir l'adresse IP
+import webbrowser    # Pour ouvrir le navigateur
+from datetime import datetime  # Pour avoir date et heure
+
+# ===== ÉTAPE 1 : DEMANDER LES INFOS À L'UTILISATEUR =====
+print("=== AUDIT DE VOTRE PC ===\n")
+
+nom = input("Votre nom : ")
+prenom = input("Votre prénom : ")
+poste = input("Numéro du poste : ")
+
+# ===== ÉTAPE 2 : RÉCUPÉRER LA DATE ET L'HEURE =====
+maintenant = datetime.now()
+date_audit = maintenant.strftime("%d/%m/%Y")  # Format : 21/11/2025
+heure_audit = maintenant.strftime("%H:%M")    # Format : 14:30
+
+# ===== ÉTAPE 3 : RÉCUPÉRER LES INFOS DU PC =====
+
+# Le système d'exploitation (Windows, Linux, etc.)
+systeme = platform.system() + " " + platform.release()
+
+# Le processeur
+processeur = platform.processor()
+
+# Architecture (32 ou 64 bits)
+architecture = platform.machine()
+
+# La RAM totale (en Go)
+ram_bytes = psutil.virtual_memory().total
+ram_go = round(ram_bytes / (1024**3), 2)  # Convertir en Go
+
+# L'espace disque
+disque = psutil.disk_usage('/')
+disque_total_go = round(disque.total / (1024**3), 2)
+disque_libre_go = round(disque.free / (1024**3), 2)
+
+# Le BIOS (pas toujours disponible)
+try:
+    import wmi
+    bios = wmi.WMI().Win32_BIOS()[0].SMBIOSBIOSVersion
+except:
+    bios = "Non disponible"
+
+# L'adresse IP locale
+ip_locale = socket.gethostbyname(socket.gethostname())
+
+# L'adresse MAC
+mac = ':'.join(['{:02x}'.format((psutil.net_if_addrs()['Ethernet'][0].address.split('-')[i] if '-' in psutil.net_if_addrs()['Ethernet'][0].address else int(psutil.net_if_addrs()['Ethernet'][0].address.split(':')[i], 16))) for i in range(6)])
+
+# Nombre de ports USB (approximatif)
+nb_usb = "Estimation : 4-6 ports"
+
+# Antivirus et Pare-feu (Windows uniquement)
+antivirus = "Windows Defender (par défaut)"
+parefeu = "Actif (par défaut)"
+
+# ===== ÉTAPE 4 : CRÉER LA PAGE HTML =====
+html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Rapport d'Audit PC</title>
+    <style>
+        body {{
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            background: #f0f0f0;
+            padding: 20px;
+        }}
+        .rapport {{
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }}
+        h1 {{
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }}
+        .info {{
+            margin: 15px 0;
+            padding: 10px;
+            background: #ecf0f1;
+            border-left: 4px solid #3498db;
+        }}
+        .label {{
+            font-weight: bold;
+            color: #2c3e50;
+        }}
+    </style>
+</head>
+<body>
+    <div class="rapport">
+        <h1>📋 RAPPORT D'AUDIT PC</h1>
+        
+        <div class="info">
+            <span class="label">👤 Nom :</span> {nom}
+        </div>
+        <div class="info">
+            <span class="label">👤 Prénom :</span> {prenom}
+        </div>
+        <div class="info">
+            <span class="label">💻 Poste :</span> {poste}
+        </div>
+        <div class="info">
+            <span class="label">📅 Date :</span> {date_audit}
+        </div>
+        <div class="info">
+            <span class="label">🕐 Heure :</span> {heure_audit}
+        </div>
+        
+        <h2>🖥️ INFORMATIONS TECHNIQUES</h2>
+        
+        <div class="info">
+            <span class="label">🔌 Ports USB :</span> {nb_usb}
+        </div>
+        <div class="info">
+            <span class="label">💿 Système :</span> {systeme}
+        </div>
+        <div class="info">
+            <span class="label">⚙️ Processeur :</span> {processeur}
+        </div>
+        <div class="info">
+            <span class="label">🏗️ Architecture :</span> {architecture}
+        </div>
+        <div class="info">
+            <span class="label">🧠 RAM :</span> {ram_go} Go
+        </div>
+        <div class="info">
+            <span class="label">💾 Disque :</span> {disque_libre_go} Go libre / {disque_total_go} Go total
+        </div>
+        <div class="info">
+            <span class="label">⚡ BIOS/UEFI :</span> {bios}
+        </div>
+        <div class="info">
+            <span class="label">🌐 IP locale :</span> {ip_locale}
+        </div>
+        <div class="info">
+            <span class="label">🔖 MAC :</span> Voir paramètres réseau
+        </div>
+        <div class="info">
+            <span class="label">🛡️ Antivirus :</span> {antivirus}
+        </div>
+        <div class="info">
+            <span class="label">🔥 Pare-feu :</span> {parefeu}
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+# ===== ÉTAPE 5 : SAUVEGARDER ET OUVRIR =====
+# Créer le fichier HTML
+with open("audit_pc.html", "w", encoding="utf-8") as fichier:
+    fichier.write(html)
+
+# Ouvrir dans le navigateur
+webbrowser.open("audit_pc.html")
+
+print("\n✅ Rapport créé ! Le navigateur va s'ouvrir automatiquement.")
