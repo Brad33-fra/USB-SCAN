@@ -2,6 +2,7 @@ import platform
 import psutil
 import webbrowser
 from datetime import datetime
+import subprocess
 
 # ===== DEMANDER LES INFOS À L'UTILISATEUR =====
 nom = input("Votre nom : ")
@@ -20,11 +21,25 @@ systeme = platform.system() + " " + platform.release()
 # Processeur
 processeur = platform.processor()
 
-# Nombre de ports USB (en fonction des périphériques montés USB)
+# Nombre de ports USB (selon le système)
 ports_usb = 0
-for partition in psutil.disk_partitions():
-    if 'usb' in partition.device.lower():  # Si le périphérique est USB
-        ports_usb += 1
+
+if platform.system() == "Windows":
+    # Sous Windows, on utilise wmic pour lister les contrôleurs USB
+    try:
+        result = subprocess.run(['wmic', 'path', 'Win32_USBControllerDevice', 'get', 'Dependent'], capture_output=True, text=True)
+        ports_usb = result.stdout.count('USB')
+    except:
+        ports_usb = "Non détecté (exécution en admin requise ?)"
+elif platform.system() == "Linux":
+    # Sous Linux, on compte les ports dans /sys/bus/usb/devices/
+    try:
+        result = subprocess.run(['ls', '/sys/bus/usb/devices/'], capture_output=True, text=True)
+        ports_usb = len([line for line in result.stdout.splitlines() if 'usb' in line.lower() and line[0].isdigit()])
+    except:
+        ports_usb = "Non détecté (droits insuffisants ?)"
+else:
+    ports_usb = "Non supporté sur ce système"
 
 # ===== CRÉER LA PAGE HTML =====
 html = f"""
@@ -49,7 +64,7 @@ html = f"""
         <div class="info"><span class="label">💻 Poste :</span> {poste}</div>
         <div class="info"><span class="label">📅 Date :</span> {date_audit}</div>
         <div class="info"><span class="label">🕐 Heure :</span> {heure_audit}</div>
-        
+
         <h2>🖥️ INFORMATIONS TECHNIQUES</h2>
         <div class="info"><span class="label">🔌 Ports USB :</span> {ports_usb}</div>
         <div class="info"><span class="label">💿 Système :</span> {systeme}</div>
