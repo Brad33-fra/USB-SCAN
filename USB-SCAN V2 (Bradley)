@@ -1,0 +1,113 @@
+import webbrowser
+import datetime
+import platform
+import subprocess
+import sys
+
+# Détection du système d'exploitation
+system = platform.system()
+if system == "Windows":
+    print("Vous êtes sur la bonne plateforme pour que ce programme fonctionne.")
+else:
+    print(f"Ce programme ne fonctionne que sur Windows. Or vous êtes sur {system}.")
+    sys.exit()
+
+# Fonction pour détecter les ports USB sous Windows
+def detecter_ports_usb_windows():
+    try:
+        resultat = subprocess.run(
+            ["powershell", "-Command", "Get-PnpDevice -Class USB | Where-Object {$_.Status -eq 'OK'}"],
+            capture_output=True,
+            text=True
+        )
+        # Compte le nombre de lignes (moins l'en-tête éventuel)
+        lignes = resultat.stdout.strip().split("\n")
+        return len(lignes) if resultat.stdout.strip() else 0
+    except Exception as e:
+        print("Erreur lors de la détection des ports USB :", e)
+        return 0
+
+# Liste pour stocker les réponses
+reponses_utilisateur = []
+
+# Collecter les informations de l'utilisateur
+continu = True
+while continu:
+    prenom = input("Quel est votre prénom ? ")
+    nom = input("Quel est votre nom ? ")
+
+    # Obtenir la date et l'heure actuelle
+    date_heure = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Afficher le message de bienvenue
+    print(f"Bonjour, {prenom} {nom} !")
+
+    # Demander si l'utilisateur souhaite continuer
+    reponse = input("Souhaitez-vous continuer ? (oui/non) ").strip().lower()
+
+    # Stocker la réponse et les informations
+    reponses_utilisateur.append({
+        "prenom": prenom,
+        "nom": nom,
+        "date_heure": date_heure,
+        "reponse": reponse
+    })
+
+    if reponse != "oui":
+        continu = False
+        print("Au revoir !")
+
+# Générer le contenu HTML
+contenu_html = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Réponses de l'utilisateur</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { color: #333; }
+        table { border-collapse: collapse; width: 80%; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h1>Historique des réponses</h1>
+    <table>
+        <tr>
+            <th>Prénom</th>
+            <th>Nom</th>
+            <th>Date et Heure</th>
+            <th>Réponse</th>
+        </tr>
+"""
+
+# Ajouter les réponses au HTML
+for reponse in reponses_utilisateur:
+    contenu_html += f"""
+        <tr>
+            <td>{reponse['prenom']}</td>
+            <td>{reponse['nom']}</td>
+            <td>{reponse['date_heure']}</td>
+            <td>{reponse['reponse']}</td>
+        </tr>
+    """
+
+# Fermer le HTML
+contenu_html += """
+    </table>
+</body>
+</html>
+"""
+
+# Écrire le contenu dans un fichier HTML
+with open("reponses_utilisateur.html", "w", encoding="utf-8") as fichier:
+    fichier.write(contenu_html)
+
+# Ouvrir le fichier dans le navigateur
+webbrowser.open("reponses_utilisateur.html")
+
+# Afficher le nombre de ports USB détectés
+ports_usb = detecter_ports_usb_windows()
+print(f"Nombre de périphériques USB détectés : {ports_usb}")
