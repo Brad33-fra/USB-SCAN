@@ -1,0 +1,143 @@
+import sqlite3
+import random
+
+# Connexion à la base SQLite
+conn = sqlite3.connect("vocabulaire.db")
+cursor = conn.cursor()
+
+# Création de la table si elle n'existe pas
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS mots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mot TEXT UNIQUE,
+    traduction TEXT,
+    preterit TEXT,
+    participe_passe TEXT,
+    score INTEGER DEFAULT 0
+)
+""")
+conn.commit()
+
+# Initialisation avec 20 verbes irréguliers
+def initialiser_base():
+    verbes = [
+        ("be", "être", "was/were", "been"),
+        ("become", "devenir", "became", "become"),
+        ("begin", "commencer", "began", "begun"),
+        ("break", "casser", "broke", "broken"),
+        ("bring", "apporter", "brought", "brought"),
+        ("build", "construire", "built", "built"),
+        ("buy", "acheter", "bought", "bought"),
+        ("catch", "attraper", "caught", "caught"),
+        ("choose", "choisir", "chose", "chosen"),
+        ("come", "venir", "came", "come"),
+        ("do", "faire", "did", "done"),
+        ("drink", "boire", "drank", "drunk"),
+        ("eat", "manger", "ate", "eaten"),
+        ("fall", "tomber", "fell", "fallen"),
+        ("feel", "ressentir", "felt", "felt"),
+        ("find", "trouver", "found", "found"),
+        ("fly", "voler", "flew", "flown"),
+        ("forget", "oublier", "forgot", "forgotten"),
+        ("get", "obtenir", "got", "gotten"),
+        ("give", "donner", "gave", "given")
+    ]
+
+    for mot, traduction, preterit, participe in verbes:
+        try:
+            cursor.execute("INSERT INTO mots (mot, traduction, preterit, participe_passe) VALUES (?, ?, ?, ?)",
+                           (mot, traduction, preterit, participe))
+        except sqlite3.IntegrityError:
+            pass  # Ignorer si le mot existe déjà
+
+    conn.commit()
+    print("Base initialisée avec 20 verbes irréguliers !")
+
+# Ajouter un mot
+def ajouter_mot():
+    mot = input("Mot anglais : ")
+    traduction = input("Traduction : ")
+    preterit = input("Prétérit (laisser vide si non-verbe) : ")
+    participe_passe = input("Participe passé (laisser vide si non-verbe) : ")
+    try:
+        cursor.execute("INSERT INTO mots (mot, traduction, preterit, participe_passe) VALUES (?, ?, ?, ?)",
+                       (mot, traduction, preterit, participe_passe))
+        conn.commit()
+        print("Mot ajouté !")
+    except sqlite3.IntegrityError:
+        print("Ce mot existe déjà.")
+
+# Modifier un mot
+def modifier_mot():
+    mot = input("Mot à modifier : ")
+    cursor.execute("SELECT * FROM mots WHERE mot = ?", (mot,))
+    result = cursor.fetchone()
+    if result:
+        traduction = input(f"Nouvelle traduction (actuelle: {result[2]}): ") or result[2]
+        preterit = input(f"Nouveau prétérit (actuel: {result[3]}): ") or result[3]
+        participe_passe = input(f"Nouveau participe passé (actuel: {result[4]}): ") or result[4]
+        cursor.execute("UPDATE mots SET traduction=?, preterit=?, participe_passe=? WHERE mot=?",
+                       (traduction, preterit, participe_passe, mot))
+        conn.commit()
+        print("Mot modifié !")
+    else:
+        print("Mot non trouvé.")
+
+# Supprimer un mot
+def supprimer_mot():
+    mot = input("Mot à supprimer : ")
+    cursor.execute("DELETE FROM mots WHERE mot = ?", (mot,))
+    conn.commit()
+    print("Mot supprimé !")
+
+# Interroger l'utilisateur
+def interroger():
+    cursor.execute("SELECT * FROM mots ORDER BY score ASC")
+    mots = cursor.fetchall()
+    if not mots:
+        print("La base est vide. Ajoutez des mots d'abord.")
+        return
+
+    mot = random.choice(mots)
+    print(f"\nMot à traduire : {mot[1]}")
+    reponse = input("Traduction : ")
+    correct = reponse.lower() == mot[2].lower()
+
+    # Si verbe irrégulier
+    if mot[3] and mot[4]:
+        reponse_preterit = input("Prétérit : ")
+        reponse_participe = input("Participe passé : ")
+        correct &= (reponse_preterit.lower() == mot[3].lower() and reponse_participe.lower() == mot[4].lower())
+
+    if correct:
+        print("Correct ! 🎉")
+        cursor.execute("UPDATE mots SET score = score + 1 WHERE id = ?", (mot[0],))
+    else:
+        print(f"Incorrect. Réponses correctes : Traduction='{mot[2]}', Prétérit='{mot[3]}', Participe passé='{mot[4]}'")
+    conn.commit()
+
+# Menu principal
+def menu():
+    while True:
+        print("\n1. Ajouter un mot")
+        print("2. Modifier un mot")
+        print("3. Supprimer un mot")
+        print("4. Interroger")
+        print("5. Quitter")
+        choix = input("Choix : ")
+        if choix == "1":
+            ajouter_mot()
+        elif choix == "2":
+            modifier_mot()
+        elif choix == "3":
+            supprimer_mot()
+        elif choix == "4":
+            interroger()
+        elif choix == "5":
+            break
+        else:
+            print("Choix invalide")
+
+if __name__ == "__main__":
+    menu()
+    conn.close()
