@@ -1,0 +1,334 @@
+import sqlite3
+import random
+
+# Connexion à la base SQLite
+conn = sqlite3.connect("vocabulaire.db")
+cursor = conn.cursor()
+
+# Création de la table si elle n'existe pas
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS mots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mot TEXT UNIQUE,
+    traduction TEXT,
+    preterit TEXT,
+    participe_passe TEXT,
+    score INTEGER DEFAULT 0
+)
+""")
+
+# Création de la table pour les statistiques
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS statistiques (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    total_tests INTEGER DEFAULT 0,
+    reussites INTEGER DEFAULT 0,
+    echecs INTEGER DEFAULT 0
+)
+""")
+
+# Initialiser les statistiques si elles n'existent pas
+cursor.execute("SELECT COUNT(*) FROM statistiques")
+if cursor.fetchone()[0] == 0:
+    cursor.execute("INSERT INTO statistiques (total_tests, reussites, echecs) VALUES (0, 0, 0)")
+
+conn.commit()
+
+# Initialisation avec 20 verbes irréguliers
+def initialiser_base():
+    verbes = [
+        ("be", "être", "was/were", "been"),
+        ("become", "devenir", "became", "become"),
+        ("begin", "commencer", "began", "begun"),
+        ("break", "casser", "broke", "broken"),
+        ("bring", "apporter", "brought", "brought"),
+        ("build", "construire", "built", "built"),
+        ("buy", "acheter", "bought", "bought"),
+        ("catch", "attraper", "caught", "caught"),
+        ("choose", "choisir", "chose", "chosen"),
+        ("come", "venir", "came", "come"),
+        ("do", "faire", "did", "done"),
+        ("drink", "boire", "drank", "drunk"),
+        ("eat", "manger", "ate", "eaten"),
+        ("fall", "tomber", "fell", "fallen"),
+        ("feel", "ressentir", "felt", "felt"),
+        ("find", "trouver", "found", "found"),
+        ("fly", "voler", "flew", "flown"),
+        ("forget", "oublier", "forgot", "forgotten"),
+        ("get", "obtenir", "got", "gotten"),
+        ("give", "donner", "gave", "given")
+    ]
+
+    for mot, traduction, preterit, participe in verbes:
+        try:
+            cursor.execute("INSERT INTO mots (mot, traduction, preterit, participe_passe) VALUES (?, ?, ?, ?)",
+                           (mot, traduction, preterit, participe))
+        except sqlite3.IntegrityError:
+            pass  # Ignorer si le mot existe déjà
+
+    conn.commit()
+    print("Base initialisée avec 20 verbes irréguliers !")
+
+# Afficher tous les mots de la base
+def afficher_mots():
+    cursor.execute("SELECT mot, traduction, preterit, participe_passe, score FROM mots ORDER BY mot")
+    mots = cursor.fetchall()
+    
+    if not mots:
+        print("\n❌ La base de données est vide.")
+        return
+    
+    print(f"\n{'='*80}")
+    print(f"📚 LISTE DES MOTS DANS LA BASE DE DONNÉES ({len(mots)} mots)")
+    print(f"{'='*80}")
+    print(f"{'Mot':<15} {'Traduction':<20} {'Prétérit':<15} {'Participe passé':<15} Score")
+    print(f"{'-'*80}")
+    
+    for mot in mots:
+        mot_en, trad, pret, part, score = mot
+        pret = pret if pret else "-"
+        part = part if part else "-"
+        print(f"{mot_en:<15} {trad:<20} {pret:<15} {part:<15} {score}")
+    
+    print(f"{'='*80}\n")
+
+# Ajouter un mot
+def ajouter_mot():
+    mot = input("Mot anglais : ").strip()
+    
+    # Vérifier si le mot existe déjà
+    cursor.execute("SELECT mot, traduction FROM mots WHERE mot = ?", (mot,))
+    existe = cursor.fetchone()
+    
+    if existe:
+        print(f"\n⚠️  ATTENTION : Le mot '{mot}' existe déjà dans la base de données !")
+        print(f"   Traduction actuelle : {existe[1]}")
+        print("   Utilisez l'option 'Modifier un mot' si vous voulez le modifier.\n")
+        return
+    
+    traduction = input("Traduction : ").strip()
+    preterit = input("Prétérit (laisser vide si non-verbe) : ").strip()
+    participe_passe = input("Participe passé (laisser vide si non-verbe) : ").strip()
+    
+    cursor.execute("INSERT INTO mots (mot, traduction, preterit, participe_passe) VALUES (?, ?, ?, ?)",
+                   (mot, traduction, preterit, participe_passe))
+    conn.commit()
+    print("✅ Mot ajouté avec succès !")
+
+# Modifier un mot
+def modifier_mot():
+    mot = input("Mot à modifier : ").strip()
+    cursor.execute("SELECT * FROM mots WHERE mot = ?", (mot,))
+    result = cursor.fetchone()
+    if result:
+        print(f"\n📝 Modification du mot '{mot}'")
+        traduction = input(f"Nouvelle traduction (actuelle: {result[2]}): ").strip() or result[2]
+        preterit = input(f"Nouveau prétérit (actuel: {result[3]}): ").strip() or result[3]
+        participe_passe = input(f"Nouveau participe passé (actuel: {result[4]}): ").strip() or result[4]
+        cursor.execute("UPDATE mots SET traduction=?, preterit=?, participe_passe=? WHERE mot=?",
+                       (traduction, preterit, participe_passe, mot))
+        conn.commit()
+        print("✅ Mot modifié avec succès !")
+    else:
+        print("❌ Mot non trouvé.")
+
+# Supprimer un mot
+def supprimer_mot():
+    mot = input("Mot à supprimer : ").strip()
+    cursor.execute("SELECT mot FROM mots WHERE mot = ?", (mot,))
+    if cursor.fetchone():
+        confirmation = input(f"⚠️  Êtes-vous sûr de vouloir supprimer '{mot}' ? (o/n) : ")
+        if confirmation.lower() == 'o':
+            cursor.execute("DELETE FROM mots WHERE mot = ?", (mot,))
+            conn.commit()
+            print("✅ Mot supprimé !")
+        else:
+            print("❌ Suppression annulée.")
+    else:
+        print("❌ Mot non trouvé.")
+
+# Afficher les statistiques
+def afficher_statistiques():
+    cursor.execute("SELECT total_tests, reussites, echecs FROM statistiques WHERE id = 1")
+    stats = cursor.fetchone()
+    total, reussites, echecs = stats
+    
+    print(f"\n{'='*60}")
+    print(f"📊 STATISTIQUES")
+    print(f"{'='*60}")
+    
+    if total == 0:
+        print("Aucun test effectué pour le moment.")
+        print(f"{'='*60}\n")
+        return
+    
+    taux_reussite = (reussites / total * 100) if total > 0 else 0
+    
+    print(f"Nombre total de tests effectués : {total}")
+    print(f"Réussites                        : {reussites}")
+    print(f"Échecs                           : {echecs}")
+    print(f"\n🎯 Taux de réussite              : {taux_reussite:.1f}%")
+    
+    # Évaluation du niveau
+    if taux_reussite >= 90:
+        niveau = "Excellent ! 🌟"
+    elif taux_reussite >= 75:
+        niveau = "Très bien ! 👍"
+    elif taux_reussite >= 60:
+        niveau = "Bien 👌"
+    elif taux_reussite >= 50:
+        niveau = "Moyen 😐"
+    else:
+        niveau = "À améliorer 📚"
+    
+    print(f"Niveau de maîtrise               : {niveau}")
+    print(f"{'='*60}\n")
+
+# Interroger l'utilisateur
+def interroger():
+    cursor.execute("SELECT * FROM mots ORDER BY score ASC")
+    mots = cursor.fetchall()
+    
+    if not mots:
+        print("❌ La base est vide. Ajoutez des mots d'abord.")
+        return
+    
+    print(f"\n📚 Il y a {len(mots)} mots dans la base de données.")
+    
+    # Demander le nombre de mots à tester
+    while True:
+        try:
+            nb_questions = int(input(f"Combien de mots voulez-vous tester ? (1-{len(mots)}) : "))
+            if 1 <= nb_questions <= len(mots):
+                break
+            else:
+                print(f"❌ Veuillez entrer un nombre entre 1 et {len(mots)}")
+        except ValueError:
+            print("❌ Veuillez entrer un nombre valide")
+    
+    # Sélectionner les mots à tester (priorité aux mots avec score faible)
+    mots_a_tester = mots[:nb_questions]
+    random.shuffle(mots_a_tester)
+    
+    score_session = 0
+    
+    print(f"\n🎯 Début du test avec {nb_questions} mot(s) !\n")
+    
+    for i, mot in enumerate(mots_a_tester, 1):
+        print(f"\n--- Question {i}/{nb_questions} ---")
+        print(f"Mot à traduire : {mot[1]}")
+        reponse = input("Traduction : ").strip()
+        correct = reponse.lower() == mot[2].lower()
+        
+        # Si verbe irrégulier
+        if mot[3] and mot[4]:
+            reponse_preterit = input("Prétérit : ").strip()
+            reponse_participe = input("Participe passé : ").strip()
+            
+            correct_preterit = reponse_preterit.lower() == mot[3].lower()
+            correct_participe = reponse_participe.lower() == mot[4].lower()
+            
+            correct = correct and correct_preterit and correct_participe
+        
+        # Mise à jour des statistiques
+        cursor.execute("UPDATE statistiques SET total_tests = total_tests + 1 WHERE id = 1")
+        
+        if correct:
+            print("✅ Correct ! 🎉")
+            cursor.execute("UPDATE mots SET score = score + 1 WHERE id = ?", (mot[0],))
+            cursor.execute("UPDATE statistiques SET reussites = reussites + 1 WHERE id = 1")
+            score_session += 1
+        else:
+            print(f"❌ Incorrect.")
+            print(f"   Réponse correcte : {mot[2]}")
+            if mot[3] and mot[4]:
+                print(f"   Prétérit : {mot[3]}")
+                print(f"   Participe passé : {mot[4]}")
+            cursor.execute("UPDATE statistiques SET echecs = echecs + 1 WHERE id = 1")
+        
+        conn.commit()
+    
+    # Afficher le résultat de la session
+    pourcentage_session = (score_session / nb_questions * 100)
+    print(f"\n{'='*60}")
+    print(f"🏁 FIN DU TEST")
+    print(f"{'='*60}")
+    print(f"Score : {score_session}/{nb_questions} ({pourcentage_session:.1f}%)")
+    
+    if pourcentage_session == 100:
+        print("🌟 Parfait ! Excellent travail !")
+    elif pourcentage_session >= 80:
+        print("👍 Très bien !")
+    elif pourcentage_session >= 60:
+        print("👌 Pas mal !")
+    else:
+        print("📚 Continuez à vous entraîner !")
+    
+    print(f"{'='*60}\n")
+
+# Réinitialiser les statistiques
+def reinitialiser_stats():
+    confirmation = input("⚠️  Voulez-vous vraiment réinitialiser toutes les statistiques ? (o/n) : ")
+    if confirmation.lower() == 'o':
+        cursor.execute("UPDATE statistiques SET total_tests = 0, reussites = 0, echecs = 0 WHERE id = 1")
+        cursor.execute("UPDATE mots SET score = 0")
+        conn.commit()
+        print("✅ Statistiques réinitialisées !")
+    else:
+        print("❌ Réinitialisation annulée.")
+
+# Menu principal
+def menu():
+    print("\n" + "="*60)
+    print("🎓 APPRENTISSAGE DE VOCABULAIRE ANGLAIS")
+    print("="*60)
+    
+    # Vérifier si la base est initialisée
+    cursor.execute("SELECT COUNT(*) FROM mots")
+    if cursor.fetchone()[0] == 0:
+        print("\n📌 La base de données est vide.")
+        init = input("Voulez-vous l'initialiser avec 20 verbes irréguliers ? (o/n) : ")
+        if init.lower() == 'o':
+            initialiser_base()
+    
+    while True:
+        print("\n" + "-"*60)
+        print("MENU PRINCIPAL")
+        print("-"*60)
+        print("1. Afficher tous les mots")
+        print("2. Ajouter un mot")
+        print("3. Modifier un mot")
+        print("4. Supprimer un mot")
+        print("5. 🎯 Lancer un test")
+        print("6. 📊 Voir les statistiques")
+        print("7. 🔄 Réinitialiser les statistiques")
+        print("8. 🚪 Quitter")
+        print("-"*60)
+        
+        choix = input("Votre choix : ").strip()
+        
+        if choix == "1":
+            afficher_mots()
+        elif choix == "2":
+            ajouter_mot()
+        elif choix == "3":
+            modifier_mot()
+        elif choix == "4":
+            supprimer_mot()
+        elif choix == "5":
+            interroger()
+        elif choix == "6":
+            afficher_statistiques()
+        elif choix == "7":
+            reinitialiser_stats()
+        elif choix == "8":
+            print("\n👋 Au revoir et bon apprentissage !")
+            break
+        else:
+            print("❌ Choix invalide, veuillez réessayer.")
+
+if __name__ == "__main__":
+    try:
+        menu()
+    finally:
+        conn.close()
